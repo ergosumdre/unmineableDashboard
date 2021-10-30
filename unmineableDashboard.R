@@ -89,7 +89,7 @@ server <- function(input, output) {
         eth_conversion <- jsonlite::fromJSON(eth_conversion)$data[3] %>% data.frame()
         eth_amount <- usd_bal/  as.numeric(paste0(eth_conversion$amount))
         # END ETH Conversion
-        # EUR Conversion
+        # EUR Conversion https://app.exchangerate-api.com/dashboard
         # https://v6.exchangerate-api.com/v6/82ed39260b7e8945188d8623/pair/USD/EUR
         exchangerate_base_url <- "https://v6.exchangerate-api.com/v6/"
         currency_api <-"82ed39260b7e8945188d8623"
