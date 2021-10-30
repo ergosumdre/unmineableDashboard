@@ -58,33 +58,33 @@ server <- function(input, output) {
         coin = input$coin
         # UNMINEABLE API CALLS -- Get data into a dataframe
         unmineable_base_url <- "https://api.unminable.com/v4/"
-        unmineable_action = "address/"
+        unmineable_action <- "address/"
         response <- httr::GET(url = paste0(unmineable_base_url, unmineable_action,address, "?", "coin=",  coin))
-        content = httr::content(response, as= "text")
+        content <- httr::content(response, as= "text")
         content <- jsonlite::fromJSON(content)$data[1:12] %>% data.frame()
         # END UNMINEABLE API CALLS -- Get data into a dataframe
-        
+
         # GET USD conversions
-        coinbase_base_url = "https://api.coinbase.com/v2/"
-        coinbase_action = "prices/"
-        currency_pair = paste0(coin, "-USD")
+        coinbase_base_url <- "https://api.coinbase.com/v2/"
+        coinbase_action <- "prices/"
+        currency_pair <- paste0(coin, "-USD")
         conversion_response <- httr::GET(url = paste0(coinbase_base_url, coinbase_action, currency_pair, "/spot"))
-        conversion_content = httr::content(conversion_response, as= "text")
+        conversion_content <- httr::content(conversion_response, as= "text")
         conversion_content <- jsonlite::fromJSON(conversion_content)$data[3] %>% data.frame()
         options(scipen = 99999)
         usd_bal <- as.numeric(paste0(conversion_content$amount)) * as.numeric(paste0(content$balance))
         # END USD conversions
-        
+
         # BTC Conversion
         btc_conversion <- httr::GET(url = paste0(coinbase_base_url, coinbase_action, "BTC-USD", "/spot"))
-        btc_conversion = httr::content(btc_conversion, as= "text")
+        btc_conversion <- httr::content(btc_conversion, as= "text")
         btc_conversion <- jsonlite::fromJSON(btc_conversion)$data[3] %>% data.frame()
         btc_amount <- usd_bal/  as.numeric(paste0(btc_conversion$amount))
         # END BTC Conversion
 
         # ETH Conversion
         eth_conversion <- httr::GET(url = paste0(coinbase_base_url, coinbase_action, "ETH-USD", "/spot"))
-        eth_conversion = httr::content(eth_conversion, as= "text")
+        eth_conversion <- httr::content(eth_conversion, as= "text")
         eth_conversion <- jsonlite::fromJSON(eth_conversion)$data[3] %>% data.frame()
         eth_amount <- usd_bal/  as.numeric(paste0(eth_conversion$amount))
         # END ETH Conversion
@@ -99,21 +99,21 @@ server <- function(input, output) {
 
     })
     output$hashrate <- renderDygraph({
-        address = input$address
-        coin = input$coin
+        address <- input$address
+        coin <- input$coin
         # UNMINEABLE API CALLS -- Get data into a dataframe
         unmineable_base_url <- "https://api.unminable.com/v4/"
-        unmineable_action = "address/"
+        unmineable_action <- "address/"
         response <- httr::GET(url = paste0(unmineable_base_url, unmineable_action,address, "?", "coin=",  coin))
-        content = httr::content(response, as= "text")
+        content <- httr::content(response, as= "text")
         content <- jsonlite::fromJSON(content)$data[1:12] %>% data.frame()
-        
+
         # HISTORICAL HASHRATE GRAPH
         uuid <- content$uuid
         hashrate_action <- "account/"
         end_url_str <- "/workers"
         graph_unmineable <- httr::GET(url = paste0(unmineable_base_url, hashrate_action,uuid,  end_url_str))
-        graph_unmineable_content = httr::content(graph_unmineable, type = "application/json")
+        graph_unmineable_content <- httr::content(graph_unmineable, type = "application/json")
         graph <- data.frame(hashrate = graph_unmineable_content$data$ethash$chart$reported$data %>% unlist(),
                             time = graph_unmineable_content$data$ethash$chart$reported$timestamps %>% unlist())
         graph <- graph %>% filter(row_number() %% 5 == 1)
@@ -122,7 +122,7 @@ server <- function(input, output) {
         graph <- tail(graph, 100)
         graph <- xts(graph$hashrate, graph$date_time)
         # END HISTORICAL HASHRATE
-        
+
         # Plot Hashrate
         dygraph(graph, main = "Unmineable Hashrate", xlab = "Time", ylab = "Hashrate (Mhs)") %>% dyOptions(fillGraph = TRUE,
                                                                    fillAlpha = .4)
