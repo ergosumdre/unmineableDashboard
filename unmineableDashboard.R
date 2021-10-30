@@ -41,7 +41,8 @@ ui <- fluidPage(
                         ),
             radioButtons(inputId = "convert_to",
                         label = "Convert to:",
-                        choices = c("USD", "BTC", "ETH"))
+                        choices = c("USD","EUR",
+                                    "BTC", "ETH"))
         ),
 
         mainPanel(
@@ -88,11 +89,21 @@ server <- function(input, output) {
         eth_conversion <- jsonlite::fromJSON(eth_conversion)$data[3] %>% data.frame()
         eth_amount <- usd_bal/  as.numeric(paste0(eth_conversion$amount))
         # END ETH Conversion
+        # EUR Conversion
+        # https://v6.exchangerate-api.com/v6/82ed39260b7e8945188d8623/pair/USD/EUR
+        exchangerate_base_url <- "https://v6.exchangerate-api.com/v6/"
+        currency_api <-"82ed39260b7e8945188d8623"
+        exchangerate_action <- "/pair/USD/"
+        exchangerate_to <- input$convert_to
+        eur <- httr::GET(url = paste0(exchangerate_base_url, currency_api, exchangerate_action, exchangerate_to))
+        eur <- httr::content(eur, as= "text")
+        eur <- jsonlite::fromJSON(eur)$conversion_rate[1] %>% data.frame()
+        eur <- usd_bal * eur[1]
 
         # END GET USD current conversions
         # RETURN BALANCES
         return(paste("Current ", input$convert_to, " value is ",
-                     switch(input$convert_to, BTC = btc_amount, USD = usd_bal, ETH = eth_amount),
+                     switch(input$convert_to, BTC = btc_amount, USD = usd_bal, ETH = eth_amount, EUR = eur),
                      "\n",
                     "Current SHIBA: ", content$balance))
         # END RETURN BALANCES
