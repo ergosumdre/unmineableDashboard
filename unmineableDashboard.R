@@ -65,6 +65,8 @@ server <- function(input, output) {
         content <- jsonlite::fromJSON(content)$data[1:12] %>% data.frame()
         # END UNMINEABLE API CALLS -- Get data into a dataframe
 
+        # END GET USD current conversions
+
         # GET USD conversions
         coinbase_base_url <- "https://api.coinbase.com/v2/"
         coinbase_action <- "prices/"
@@ -76,19 +78,6 @@ server <- function(input, output) {
         usd_bal <- as.numeric(paste0(conversion_content$amount)) * as.numeric(paste0(content$balance))
         # END USD conversions
 
-        # BTC Conversion
-        btc_conversion <- httr::GET(url = paste0(coinbase_base_url, coinbase_action, "BTC-USD", "/spot"))
-        btc_conversion <- httr::content(btc_conversion, as= "text")
-        btc_conversion <- jsonlite::fromJSON(btc_conversion)$data[3] %>% data.frame()
-        btc_amount <- usd_bal/  as.numeric(paste0(btc_conversion$amount))
-        # END BTC Conversion
-
-        # ETH Conversion
-        eth_conversion <- httr::GET(url = paste0(coinbase_base_url, coinbase_action, "ETH-USD", "/spot"))
-        eth_conversion <- httr::content(eth_conversion, as= "text")
-        eth_conversion <- jsonlite::fromJSON(eth_conversion)$data[3] %>% data.frame()
-        eth_amount <- usd_bal/  as.numeric(paste0(eth_conversion$amount))
-        # END ETH Conversion
         # EUR Conversion https://app.exchangerate-api.com/dashboard
         # https://v6.exchangerate-api.com/v6/82ed39260b7e8945188d8623/pair/USD/EUR
         exchangerate_base_url <- "https://v6.exchangerate-api.com/v6/"
@@ -98,12 +87,30 @@ server <- function(input, output) {
         eur <- httr::GET(url = paste0(exchangerate_base_url, currency_api, exchangerate_action, exchangerate_to))
         eur <- httr::content(eur, as= "text")
         eur <- jsonlite::fromJSON(eur)$conversion_rate[1] %>% data.frame()
-        eur <- usd_bal * eur[1]
+        eur <- usd_bal * eur
+        # END EUR conversion
 
-        # END GET USD current conversions
+        # BTC Conversion
+        btc_conversion <- httr::GET(url = paste0(coinbase_base_url, coinbase_action, "BTC-USD", "/spot"))
+        btc_conversion <- httr::content(btc_conversion, as= "text")
+        btc_conversion <- jsonlite::fromJSON(btc_conversion)$data[3] %>% data.frame()
+        btc_amount <- usd_bal/as.numeric(paste0(btc_conversion$amount))
+        # END BTC Conversion
+
+        # ETH Conversion
+        eth_conversion <- httr::GET(url = paste0(coinbase_base_url, coinbase_action, "ETH-USD", "/spot"))
+        eth_conversion <- httr::content(eth_conversion, as= "text")
+        eth_conversion <- jsonlite::fromJSON(eth_conversion)$data[3] %>% data.frame()
+        eth_amount <- usd_bal/as.numeric(paste0(eth_conversion$amount))
+        # END ETH Conversion
+
         # RETURN BALANCES
         return(paste("Current ", input$convert_to, " value is ",
-                     switch(input$convert_to, BTC = btc_amount, USD = usd_bal, ETH = eth_amount, EUR = eur),
+                     switch(input$convert_to,
+                            BTC = btc_amount,
+                            USD = usd_bal,
+                            ETH = eth_amount,
+                            EUR = eur),
                      "\n",
                     "Current SHIBA: ", content$balance))
         # END RETURN BALANCES
