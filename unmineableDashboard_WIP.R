@@ -1,0 +1,205 @@
+library("shiny")
+library("httr")
+library("dygraphs")
+library("dplyr")
+library("jsonlite")
+library("lubridate")
+library("xts")
+library("ggplot2")
+library("data.table")
+
+ui <- fluidPage(
+
+    # Application title
+    titlePanel("Unmineable Dashboard"),
+
+    sidebarLayout(
+        sidebarPanel(
+            textInput(inputId = "address",
+                        "Enter Your Address:",
+                        value  = "0x9fdf89f6e0ab5b7b3e982035ed871da6c7b78890"),
+            selectInput(inputId = "coin",
+                        label = "Select Your Coin:",
+                        choices = c("SHIB","1INCH", "CAKE",
+                                    "CHZ","HOT", "MATIC",
+                                    "SOL", "AAVE", "ADA",
+                                    "ALGO", "ATOM", "BAND",
+                                    "BAT", "BCH", "BNB",
+                                    "BTC", "BTG", "BTT",
+                                    "DASH", "DGB", "DOGE",
+                                    "ENJ", "EOS", "ETC",
+                                    "ETH", "FUN", "GAS",
+                                    "ICX", "KLV", "KNC",
+                                    "LINK", "LSK", "LTC",
+                                    "MANA", "MTL", "NANO",
+                                    "NEO", "QTUM", "REP",
+                                    "RSR", "RVN", "SC",
+                                    "SKY", "SUSHI", "TRX",
+                                    "UNI", "USDT", "VET",
+                                    "WAVES", "WBTC", "WIN",
+                                    "XLM", "XMR", "XRP",
+                                    "XTZ", "XVG", "YFI",
+                                    "ZEC", "ZIL", "ZRX")
+                        ),
+            radioButtons(inputId = "convert_to",
+                        label = "Convert to:",
+                        choices = c("USD","EUR",
+                                    "BTC", "ETH"))
+        ),
+
+        mainPanel(
+            tabsetPanel(type = "tabs",
+                        tabPanel("Hashrate Table", dygraphOutput("hashrate")),
+                        tabPanel("Payouts", plotOutput("payouts")),
+                        tabPanel("Shiba Values", verbatimTextOutput("table"))
+            ),
+            h3(verbatimTextOutput("balance"))#,
+            #dygraphOutput("hashrate"),
+
+        )
+    )
+)
+
+server <- function(input, output) {
+
+    get_address_content <- function(){
+        address <- input$address
+        coin <- input$coin
+        unmineable_base_url <- "https://api.unminable.com/v4/"
+        unmineable_action <- "address/"
+        response <- httr::GET(url = paste0(unmineable_base_url, unmineable_action,address, "?", "coin=",  coin))
+        content <- httr::content(response, as= "text")
+        content <- jsonlite::fromJSON(content)$data[1:12] %>% data.frame()
+        return(content)
+    }
+    coin_conversion <- function(){
+        coin <- input$coin
+        coinbase_base_url <- "https://api.coinbase.com/v2/"
+        coinbase_action <- "prices/"
+        currency_pair <- paste0(coin, "-USD")
+        conversion_response <- httr::GET(url = paste0(coinbase_base_url, coinbase_action, currency_pair, "/spot"))
+        conversion_content <- httr::content(conversion_response, as= "text")
+        conversion_content <- jsonlite::fromJSON(conversion_content)$data[3] %>% data.frame()
+        options(scipen = 99999)
+        shiba_conversion <- conversion_content$amount
+        shiba_conversion <- as.numeric(paste0(shiba_conversion))
+        return(shiba_conversion)
+    }
+
+    output$balance <- renderText({
+        address = input$address
+        coin = input$coin
+        # UNMINEABLE API CALLS -- Get data into a dataframe
+        unmineable_base_url <- "https://api.unminable.com/v4/"
+        unmineable_action <- "address/"
+        response <- httr::GET(url = paste0(unmineable_base_url, unmineable_action,address, "?", "coin=",  coin))
+        content <- httr::content(response, as= "text")
+        content <- jsonlite::fromJSON(content)$data[1:12] %>% data.frame()
+        shiba_balance <- content$balance
+        # END UNMINEABLE API CALLS -- Get data into a dataframe
+
+        # END GET USD current conversions
+
+        # GET USD conversions
+        coinbase_base_url <- "https://api.coinbase.com/v2/"
+        coinbase_action <- "prices/"
+        currency_pair <- paste0(coin, "-USD")
+        conversion_response <- httr::GET(url = paste0(coinbase_base_url, coinbase_action, currency_pair, "/spot"))
+        conversion_content <- httr::content(conversion_response, as= "text")
+        conversion_content <- jsonlite::fromJSON(conversion_content)$data[3] %>% data.frame()
+        options(scipen = 99999)
+        shiba_conversion <- conversion_content$amount
+        usd_bal <- as.numeric(paste0(conversion_content$amount)) * as.numeric(paste0(shiba_balance))
+        # END USD conversions
+
+        # EUR Conversion https://app.exchangerate-api.com/dashboard
+        # https://v6.exchangerate-api.com/v6/82ed39260b7e8945188d8623/pair/USD/EUR
+        exchangerate_base_url <- "https://v6.exchangerate-api.com/v6/"
+        currency_api <-"82ed39260b7e8945188d8623"
+        exchangerate_action <- "/pair/USD/"
+        exchangerate_to <- input$convert_to
+        eur <- httr::GET(url = paste0(exchangerate_base_url, currency_api, exchangerate_action, exchangerate_to))
+        eur <- httr::content(eur, as= "text")
+        eur <- jsonlite::fromJSON(eur)$conversion_rate[1] %>% data.frame()
+        eur <- usd_bal * eur
+        # END EUR conversion
+
+        # BTC Conversion
+        btc_conversion <- httr::GET(url = paste0(coinbase_base_url, coinbase_action, "BTC-USD", "/spot"))
+        btc_conversion <- httr::content(btc_conversion, as= "text")
+        btc_conversion <- jsonlite::fromJSON(btc_conversion)$data[3] %>% data.frame()
+        btc_amount <- usd_bal/as.numeric(paste0(btc_conversion$amount))
+        # END BTC Conversion
+
+        # ETH Conversion
+        eth_conversion <- httr::GET(url = paste0(coinbase_base_url, coinbase_action, "ETH-USD", "/spot"))
+        eth_conversion <- httr::content(eth_conversion, as= "text")
+        eth_conversion <- jsonlite::fromJSON(eth_conversion)$data[3] %>% data.frame()
+        eth_amount <- usd_bal/as.numeric(paste0(eth_conversion$amount))
+        # END ETH Conversion
+
+        # RETURN BALANCES
+        return(paste("Current SHIBA value is: ", conversion_content$amount, "\n",
+            "Current ", input$convert_to, " value is ",
+                     switch(input$convert_to,
+                            BTC = btc_amount,
+                            USD = usd_bal,
+                            ETH = eth_amount,
+                            EUR = eur), "\n",
+                    "Current SHIBA: ", content$balance))
+        # END RETURN BALANCES
+
+    })
+    output$hashrate <- renderDygraph({
+        address <- input$address
+        coin <- input$coin
+        # UNMINEABLE API CALLS -- Get data into a dataframe
+        unmineable_base_url <- "https://api.unminable.com/v4/"
+        unmineable_action <- "address/"
+        response <- httr::GET(url = paste0(unmineable_base_url, unmineable_action,address, "?", "coin=",  coin))
+        content <- httr::content(response, as= "text")
+        content <- jsonlite::fromJSON(content)$data[1:12] %>% data.frame()
+
+        # HISTORICAL HASHRATE GRAPH
+        uuid <- content$uuid
+        hashrate_action <- "account/"
+        end_url_str <- "/workers"
+        graph_unmineable <- httr::GET(url = paste0(unmineable_base_url, hashrate_action,uuid,  end_url_str))
+        graph_unmineable_content <- httr::content(graph_unmineable, type = "application/json")
+        graph <- data.frame(hashrate = graph_unmineable_content$data$ethash$chart$reported$data %>% unlist(),
+                            time = graph_unmineable_content$data$ethash$chart$reported$timestamps %>% unlist())
+        graph <- graph %>% filter(row_number() %% 5 == 1)
+        graph <- graph %>% mutate(date_time = format(as.POSIXct(time / 1000, origin = "1970-01-01", tz =Sys.timezone()), "%Y-%m-%d %H:%M:%S"))
+        graph <- graph %>% mutate(date_time = lubridate::ymd_hms(date_time))
+        graph <- tail(graph, 100)
+        graph <- xts(graph$hashrate, graph$date_time)
+        # END HISTORICAL HASHRATE
+
+        # Plot Hashrate
+        dygraph(graph, main = "Unmineable Hashrate", xlab = "Time", ylab = "Hashrate (Mhs)") %>% dyOptions(fillGraph = TRUE,
+                                                                   fillAlpha = .4)
+    })
+
+    output$payouts <- renderPlot({
+        # Get Payments
+        address_details <- get_address_content()
+        unmineable_base_url <- "https://api.unminable.com/v4/"
+        payment_action <- "account/"
+        payment_last_str <- "/payments"
+        uuid <- address_details$uuid
+        payment_api_call <- httr::GET(url = paste0(unmineable_base_url, payment_action, uuid, payment_last_str))
+        payment_api_call <- httr::content(payment_api_call, type = "application/json")
+        payments <- data.table::rbindlist(payment_api_call$data$list, fill=TRUE)
+        payments <- payments %>% mutate(time = format(as.POSIXct(timestamp / 1000, origin = "1970-01-01", tz =Sys.timezone()), "%Y-%m-%d %H:%M:%S"))
+        payments <- payments %>% mutate(time = lubridate::ymd_hms(time))
+        shiba_conversion <- coin_conversion()
+        payments <- payments %>% mutate(usd_value = as.numeric(amount) * as.numeric(paste0(shiba_conversion)))
+        payments <- payments %>% mutate(date = str_sub(time, 0, 10))
+        p <- ggplot(payments) +
+            geom_col(aes(date, usd_value))
+        p
+    })
+}
+
+# Run the application
+shinyApp(ui = ui, server = server)
