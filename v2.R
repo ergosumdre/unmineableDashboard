@@ -164,20 +164,33 @@ server <- function(input, output) {
         uuid <- content$uuid
         hashrate_action <- "account/"
         end_url_str <- "/workers"
-        graph_unmineable <- httr::GET(url = paste0(unmineable_base_url, hashrate_action,uuid,  end_url_str))
-        graph_unmineable_content <- httr::content(graph_unmineable, type = "application/json")
-        graph <- data.frame(hashrate = graph_unmineable_content$data$ethash$chart$reported$data %>% unlist(),
-                            time = graph_unmineable_content$data$ethash$chart$reported$timestamps %>% unlist())
-        graph <- graph %>% filter(row_number() %% 5 == 1)
-        graph <- graph %>% mutate(date_time = format(as.POSIXct(time / 1000, origin = "1970-01-01", tz =Sys.timezone()), "%Y-%m-%d %H:%M:%S"))
-        graph <- graph %>% mutate(date_time = lubridate::ymd_hms(date_time))
-        graph <- tail(graph, 100)
-        graph <- xts(graph$hashrate, graph$date_time)
+
         # END HISTORICAL HASHRATE
 
         # Plot Hashrate
-        dygraph(graph, main = "Unmineable Hashrate", xlab = "Time", ylab = "Hashrate (Mhs)") %>% dyOptions(fillGraph = TRUE,
-                                                                   fillAlpha = .4)
+        tryCatch({
+            graph_unmineable <- httr::GET(url = paste0(unmineable_base_url, hashrate_action,uuid,  end_url_str))
+            graph_unmineable_content <- httr::content(graph_unmineable, type = "application/json")
+            graph <- data.frame(hashrate = graph_unmineable_content$data$ethash$chart$reported$data %>% unlist(),
+                                time = graph_unmineable_content$data$ethash$chart$reported$timestamps %>% unlist())
+            graph <- graph %>% filter(row_number() %% 5 == 1)
+            graph <- graph %>% mutate(date_time = format(as.POSIXct(time / 1000, origin = "1970-01-01", tz =Sys.timezone()), "%Y-%m-%d %H:%M:%S"))
+            graph <- graph %>% mutate(date_time = lubridate::ymd_hms(date_time))
+            graph <- tail(graph, 100)
+            graph <- xts(graph$hashrate, graph$date_time)
+            dygraph(graph, main = "Unmineable Hashrate", xlab = "Time", ylab = "Hashrate (Mhs)") %>% dyOptions(fillGraph = TRUE,
+                                                                                                     fillAlpha = .4)
+        },
+        error=function(e) {
+            dummy_graph <- data.frame(date_time = Sys.time(),
+                                     hashrate = 0)
+            dummy_graph <- dummy_graph %>% mutate(date_time = lubridate::ymd_hms(date_time))
+            dummy_graph <- xts(dummy_graph$hashrate, dummy_graph$date_time)
+            dygraph(dummy_graph, main = "YOUR MINER IS OFFLINE", xlab = "Time", ylab = "Hashrate (Mhs)") %>% dyOptions(fillGraph = TRUE,
+                                                                                                               fillAlpha = .4)
+        }
+        )
+
     })
 
     output$payouts <- renderPlot({
@@ -187,17 +200,34 @@ server <- function(input, output) {
         payment_action <- "account/"
         payment_last_str <- "/payments"
         uuid <- address_details$uuid
-        payment_api_call <- httr::GET(url = paste0(unmineable_base_url, payment_action, uuid, payment_last_str))
-        payment_api_call <- httr::content(payment_api_call, type = "application/json")
-        payments <- data.table::rbindlist(payment_api_call$data$list, fill=TRUE)
-        payments <- payments %>% mutate(time = format(as.POSIXct(timestamp / 1000, origin = "1970-01-01", tz =Sys.timezone()), "%Y-%m-%d %H:%M:%S"))
-        payments <- payments %>% mutate(time = lubridate::ymd_hms(time))
-        shiba_conversion <- coin_conversion()
-        payments <- payments %>% mutate(usd_value = as.numeric(amount) * as.numeric(paste0(shiba_conversion)))
-        payments <- payments %>% mutate(date = str_sub(time, 0, 10))
-        p <- ggplot(payments) +
-            geom_col(aes(date, usd_value))
-        p
+
+        tryCatch({
+            payment_api_call <- httr::GET(url = paste0(unmineable_base_url, payment_action, uuid, payment_last_str))
+            payment_api_call <- httr::content(payment_api_call, type = "application/json")
+            payments <- data.table::rbindlist(payment_api_call$data$list, fill=TRUE)
+            payments <- payments %>% mutate(time = format(as.POSIXct(timestamp / 1000, origin = "1970-01-01", tz =Sys.timezone()), "%Y-%m-%d %H:%M:%S"))
+            payments <- payments %>% mutate(time = lubridate::ymd_hms(time))
+            shiba_conversion <- coin_conversion()
+            payments <- payments %>% mutate(usd_value = as.numeric(amount) * as.numeric(paste0(shiba_conversion)))
+            payments <- payments %>% mutate(date = str_sub(time, 0, 10))
+            p <- ggplot(payments) +
+                geom_col(aes(date, usd_value)) +
+                labs(title = "Payouts") +
+                xlab("Date") +
+                ylab("Amount (USD)")
+            p
+        }, error=function(e){
+            dummy_payments <- data.frame(usd_value = 0,
+                                         date = Sys.time())
+            dummy_p <- ggplot(dummy_payments) +
+                geom_col(aes(date, usd_value)) +
+                labs(title = "You have not received a payout") +
+                xlab("Date") +
+                ylab("Amount (USD)")
+            dummy_p
+        }
+        )
+
     })
 }
 
