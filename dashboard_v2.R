@@ -48,12 +48,12 @@ ui <- fluidPage(
         ),
 
         mainPanel(
+            h3(verbatimTextOutput("balance")),
             tabsetPanel(type = "tabs",
                         tabPanel("Hashrate Table", dygraphOutput("hashrate")),
-                        tabPanel("Payouts", plotOutput("payouts")),
-                        tabPanel("Shiba Values", verbatimTextOutput("table"))
-            ),
-            h3(verbatimTextOutput("balance"))#,
+                        tabPanel("Payouts", plotOutput("payouts"))#,
+                        #tabPanel("Current SHIBA Stats", verbatimTextOutput("balance"))
+            )#,
             #dygraphOutput("hashrate"),
 
         )
@@ -139,15 +139,16 @@ server <- function(input, output) {
         # END ETH Conversion
 
         # RETURN BALANCES
-        return(paste("Current SHIBA value is: ", conversion_content$amount, "\n",
+        results <- paste("Current SHIBA value is: ", conversion_content$amount, "\n",
             "Current ", input$convert_to, " value is ",
                      switch(input$convert_to,
                             BTC = btc_amount,
                             USD = usd_bal,
                             ETH = eth_amount,
                             EUR = eur), "\n",
-                    "Current SHIBA: ", content$balance))
+                    "Current SHIBA: ", content$balance)
         # END RETURN BALANCES
+    return(results)
 
     })
     output$hashrate <- renderDygraph({
